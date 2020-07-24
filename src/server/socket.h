@@ -13,9 +13,14 @@ int setup_server_socket(int port);
 
 void async_handle_connections(int server_socket);
 
-int init_fd_set(fd_set readfds, struct client_socket **client_sockets, int n);
+int init_fd_set(fd_set *readfds, struct client_socket **client_sockets, int n);
 
-void accept_new_connection(int server_socket, struct client_socket **client_sockets, int n);
+struct client_socket *accept_new_connection(int server_socket, struct client_socket **client_sockets, int n);
 
+void add_client_socket(struct client_socket *socket, struct client_socket **client_sockets, int n);
+void remove_client_socket(struct client_socket *socket, struct client_socket **client_sockets, int n);
+
+char *read_buffer(struct client_socket *socket);
+void drain_buffer(int fd);
 
 #endif
