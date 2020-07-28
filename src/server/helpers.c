@@ -18,7 +18,7 @@ int read_word(char *str, int *start) {
     int i = *start;
     while (str[i] == ' ') i += 1;
     *start = i;
-    for (; str[i] && (str[i] != ' ' || is_in_quotes); i += 1) {
+    for (; str[i] && ((str[i] != ' ' || is_in_quotes) && str[i] != '\n' && str[i] != '\t'); i += 1) {
         if (str[i] == '"')
             is_in_quotes = !is_in_quotes;
     }
@@ -33,7 +33,13 @@ int random_number() {
 
 void sstrncpy(char *dest, char *src, int n, int skip) {
     if (n == 0) return;
-    while (n > 0)
+    while (skip-- > 0)
         src++;
     strncpy(dest, src, n);
+}
+
+char *slicestr(char *str, int start, int end) {
+    char *output = malloc(end - start);
+    sstrncpy(output, str, end - start, start);
+    return output;
 }

@@ -8,6 +8,7 @@
 
 #include "macros.h"
 #include "socket.h"
+#include "game.h"
 
 #define SOCKET_BACKLOG 10
 #define MAX_CLIENTS 50
@@ -65,8 +66,11 @@ void async_handle_connections(int server_socket) {
                 if (message == NULL) {
                     remove_client_socket(client, client_sockets, MAX_CLIENTS);
                 } else {
-                    printf("- MESSAGE FROM %s:%d: %s", client->ip, client->port, message);
-                    fflush(stdout);
+                    send(client->fd, "ACK\n", 4, 0);
+                    int output = handle_command(client, message);
+                    if (output == 0) { // Client asked to be disconnected
+                        remove_client_socket(client, client_sockets, MAX_CLIENTS);
+                    }
                 }
                 free(message);
             }
