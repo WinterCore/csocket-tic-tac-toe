@@ -164,6 +164,8 @@ void remove_client_socket(struct client_socket *socket, struct client_socket **c
     for (int i = 0; i < n; i += 1) {
         if (client_sockets[i]->fd == socket->fd) {
             client_sockets[i] = NULL;
+            close(socket->fd);
+            shutdown(socket->fd, SHUT_RDWR);
             free(socket);
             break;
         }
