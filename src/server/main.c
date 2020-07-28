@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+#include "macros.h"
 #include "socket.h"
 
 #define PORT 8080

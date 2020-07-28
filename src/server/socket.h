@@ -1,13 +1,8 @@
 #ifndef SOCKET_H
 #define SOCKET_H
-
 #include <sys/select.h>
 
-struct client_socket {
-    char ip[128];
-    int  port;
-    int  fd;
-};
+#include "macros.h"
 
 int setup_server_socket(int port);
 

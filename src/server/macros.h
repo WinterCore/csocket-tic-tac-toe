@@ -8,4 +8,10 @@
 
 #define MAX(x, y) x > y ? x : y
 
+struct client_socket {
+    char ip[128];
+    int  port;
+    int  fd;
+};
+
 #endif
