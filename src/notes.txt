@@ -1,0 +1,3 @@
+- Delete the game when a player disconnects
+- When creating a join code for a new game, check if it already exists and create a new one if that's the case.,
+
