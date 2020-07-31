@@ -64,15 +64,16 @@ void async_handle_connections(int server_socket) {
             if (client != NULL && FD_ISSET(client->fd, &readfds)) {
                 char *message = read_buffer(client);
                 if (message == NULL) {
+                    handle_command(client, "disconnect");
                     remove_client_socket(client, client_sockets, MAX_CLIENTS);
                 } else {
                     send(client->fd, "ACK\n", 4, 0);
                     int output = handle_command(client, message);
+                    free(message);
                     if (output == 0) { // Client asked to be disconnected
                         remove_client_socket(client, client_sockets, MAX_CLIENTS);
                     }
                 }
-                free(message);
             }
         }
     }
@@ -127,11 +128,11 @@ char *read_buffer(struct client_socket *socket) {
         if (nread < 0) {
             fprintf(stderr, "Client error %s:%d\n", socket->ip, socket->port);
             perror("read");
-            return NULL;
+            break;
         } else if (nread == 0) {
             printf("Client disconnected %s:%d\n", socket->ip, socket->port);
             fflush(stdout);
-            return NULL;
+            break;
         } else if (nread == READ_BUFFER_SIZE - 1) {
             drain_buffer(socket->fd);
             buffer[nread] = '\0';
@@ -142,6 +143,7 @@ char *read_buffer(struct client_socket *socket) {
         }
     }
 
+    free(buffer);
     return NULL;
 }
 
@@ -166,7 +168,7 @@ void add_client_socket(struct client_socket *socket, struct client_socket **clie
 
 void remove_client_socket(struct client_socket *socket, struct client_socket **client_sockets, int n) {
     for (int i = 0; i < n; i += 1) {
-        if (client_sockets[i]->fd == socket->fd) {
+        if (client_sockets[i] != NULL && client_sockets[i]->fd == socket->fd) {
             client_sockets[i] = NULL;
             close(socket->fd);
             shutdown(socket->fd, SHUT_RDWR);

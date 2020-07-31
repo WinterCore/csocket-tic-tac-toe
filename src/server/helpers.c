@@ -39,7 +39,9 @@ void sstrncpy(char *dest, char *src, int n, int skip) {
 }
 
 char *slicestr(char *str, int start, int end) {
-    char *output = malloc(end - start);
-    sstrncpy(output, str, end - start, start);
+    int l = end - start;
+    char *output = malloc(l + 1);
+    sstrncpy(output, str, l, start);
+    output[l] = '\0';
     return output;
 }
