@@ -45,3 +45,10 @@ char *slicestr(char *str, int start, int end) {
     output[l] = '\0';
     return output;
 }
+
+bool str_is_numeric(char *str) {
+    while (*str)
+        if (!isdigit(*str++))
+            return false;
+    return true;
+}
