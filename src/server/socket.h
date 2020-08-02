@@ -15,7 +15,7 @@ struct client_socket *accept_new_connection(int server_socket, struct client_soc
 void add_client_socket(struct client_socket *socket, struct client_socket **client_sockets, int n);
 void remove_client_socket(struct client_socket *socket, struct client_socket **client_sockets, int n);
 
-char *read_buffer(struct client_socket *socket);
+int read_buffer(struct client_socket *socket);
 void drain_buffer(int fd);
 
 #endif

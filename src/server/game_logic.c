@@ -6,13 +6,10 @@
 #include "game_logic.h"
 
 char *board_to_str(int board[], int size) {
-    int l = size * size * 2 + 6;
+    int l = size * size * 2;
     char *str = malloc(l);
-    strncpy(str, "BOARD ", 6);
-    char holder[2];
-    for (int i = 0, j = 6; i < size * size; i += 1, j += 2) {
-        sprintf(holder, "%d", board[i]);
-        str[j] = holder[0];
+    for (int i = 0, j = 0; i < size * size; i += 1, j += 2) {
+        str[j] = board[i] + '0';
         str[j + 1] = ',';
     }
     str[l - 1] = '\0';

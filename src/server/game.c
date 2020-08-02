@@ -21,8 +21,16 @@ int handle_command(struct client_socket *socket, char *commandstr) {
         create_game(games, socket, args);
     } else if (strncmp(commandstr, "join", end - 1) == 0) {
         join_game(games, socket, args);
-    } else if (strncmp(commandstr, "disconnect", 10) == 0) {
+    } else if (strncmp(commandstr, "ping", end - 1) == 0) {
+        send(socket->fd, "pong\n", 5, 0);
+    } else if (strncmp(commandstr, "disconnect", end - 1) == 0) {
         disconnect_player(games, socket);
+        struct game *game = find_game_by_player_fd(games, socket->fd);
+        if (game != NULL && (game->game_state == AWAITING_JOIN || game->game_state == STALE)) {
+            remove_game(games, game);
+        } else {
+            game->game_state = STALE;
+        }
         return 0;
     } else {
         SEND_SOCKET_MESSAGE(socket->fd, "Error: Invalid command");
@@ -125,11 +133,13 @@ void join_game(struct game *games[], struct client_socket *socket, char *args) {
     start = end;
     end = read_word(args, &start);
     if (end - start < 1 || end - start > 3) {
+        free(name);
         SEND_SOCKET_MESSAGE(socket->fd, INVALID_CREATE_ARGS);
         return;
     }
     char *shape = slicestr(args, start, end);
     if (strcmp(game->player1->shape, shape) == 0) {
+        free(name);
         free(shape);
         SEND_SOCKET_MESSAGE(socket->fd, "Error: You chose the same shape as the other player.");
         return;
@@ -142,6 +152,8 @@ void join_game(struct game *games[], struct client_socket *socket, char *args) {
     game->game_state = IN_PROGRESS;
     send(game->player2->socket->fd, "SUCCESS\n", 8, 0);
 
+    // TODO: Refactor this
+
     // Notify each player with the shape of their opponent
     send(game->player2->socket->fd, "OPPONENT_SHAPE ", 16, 0);
     send(game->player2->socket->fd, game->player1->shape, strlen(game->player1->shape), 0);
@@ -151,10 +163,25 @@ void join_game(struct game *games[], struct client_socket *socket, char *args) {
     send(game->player1->socket->fd, game->player2->shape, strlen(game->player2->shape), 0);
     send(game->player1->socket->fd, "\n", 1, 0);
 
+    // Notify each player with the shape of their opponent
+    send(game->player2->socket->fd, "OPPONENT_NAME ", 15, 0);
+    send(game->player2->socket->fd, game->player1->name, strlen(game->player1->name), 0);
+    send(game->player2->socket->fd, "\n", 1, 0);
+
+    send(game->player1->socket->fd, "OPPONENT_NAME ", 15, 0);
+    send(game->player1->socket->fd, game->player2->name, strlen(game->player2->name), 0);
+    send(game->player1->socket->fd, "\n", 1, 0);
+
     // Notify both players with the board
+    send_board(game, game->player1);
+    send_board(game, game->player2);
+}
+
+void send_board(struct game *game, struct player *player) {
     char *board = board_to_str(game->board, game->size);
-    send(game->player1->socket->fd, board, strlen(board), 0);
-    send(game->player2->socket->fd, board, strlen(board), 0);
+    send(player->socket->fd, "BOARD ", 6, 0);
+    send(player->socket->fd, board, strlen(board), 0);
+    send(player->socket->fd, "\n", 1, 0);
     free(board);
 }
 
@@ -173,11 +200,15 @@ void disconnect_player(struct game *games[], struct client_socket *socket) {
     struct game *game = find_game_by_player_fd(games, socket->fd);
     if (game != NULL) {
         if (game->player1->socket->fd == socket->fd) {
+            free(game->player1->name);
+            free(game->player1->shape);
             free(game->player1);
             if (game->player2 != NULL) {
                 send(game->player2->socket->fd, "DISCONNECT: Player 1 disconnected.\n", 35, 0);
             }
         } else {
+            free(game->player2->name);
+            free(game->player2->shape);
             free(game->player2);
             if (game->player1 != NULL) {
                 send(game->player1->socket->fd, "DISCONNECT: Player 2 disconnected.\n", 35, 0);
@@ -189,17 +220,9 @@ void disconnect_player(struct game *games[], struct client_socket *socket) {
 void remove_game(struct game *games[], struct game *game) {
     for (int i = 0; i < MAX_GAMES; i += 1) {
         if (games[i] != NULL && games[i]->id == game->id) {
-            if (game->player1 != NULL) {
-                free(game->player1->name);
-                free(game->player1->shape);
-                free(game->player1);
-            }
-            if (game->player2 != NULL) {
-                free(game->player2->name);
-                free(game->player2->shape);
-                free(game->player2);
-            }
             free(game->board);
+            free(game);
+            games[i] = NULL;
             break;
         }
     }

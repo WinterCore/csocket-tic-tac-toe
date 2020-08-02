@@ -12,11 +12,17 @@
         char *message = str "\n"; \
         send(fd, message, strlen(message), 0);
 
+#define SOCKET_BACKLOG 10
+#define MAX_CLIENTS 50
+#define READ_BUFFER_SIZE 1024
+#define VOID_BUFFER_SIZE 1024
 
 struct client_socket {
     char ip[128];
     int  port;
     int  fd;
+    char *buffer;
+    int  buffer_size;
 };
 
 #endif
