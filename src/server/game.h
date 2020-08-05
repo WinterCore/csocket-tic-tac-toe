@@ -6,13 +6,14 @@
 
 #define INVALID_CREATE_ARGS "Error: Invalid args. Correct format \"create [size{3,10}] <name{3,10}> <symbol{1,3}>\""
 #define INVALID_JOIN_ARGS "Error: Invalid args. Correct format \"join [code{1000,9999}]\" <name{3,10}> <symbol{1,3}>"
+#define INVALID_MOVE_ARGS "Error: Invalid args. Correct format \"move [code{0,board_size}]\""
 
 #define MIN_BOARD_SIZE 3
 #define MAX_BOARD_SIZE 10
 
 #define MAX_GAMES 100
 
-typedef enum game_state { AWAITING_JOIN, IN_PROGRESS, STALE } STATE;
+typedef enum game_state { AWAITING_JOIN, IN_PROGRESS, FINISHED, STALE } STATE;
 typedef enum player_no { PLAYER_EMPTY, PLAYER1, PLAYER2 } PLAYER_NO;
 
 struct player {
@@ -29,7 +30,7 @@ struct game {
     int player2_wins;
     STATE game_state;
     int size;
-    PLAYER_NO current_player;
+    struct player *current_player;
     int *board;
 };
 
@@ -39,6 +40,7 @@ int handle_command(struct client_socket *socket, char *command);
 
 void create_game(struct game *games[], struct client_socket *socket, char *args);
 void join_game(struct game *games[], struct client_socket *socket, char *args);
+void make_move(struct game *games[], struct client_socket *socket, char *args);
 
 
 void send_board(struct game *game, struct player *player);

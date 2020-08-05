@@ -15,28 +15,112 @@ static struct game *games[MAX_GAMES] = {NULL};
 int handle_command(struct client_socket *socket, char *commandstr) {
     int start = 0, end, l = strlen(commandstr);
     end = read_word(commandstr, &start);
-    char *args = malloc(l - end);
+    char *args = malloc(l - end + 1);
     sstrncpy(args, commandstr, l - end, end);
-    if (strncmp(commandstr, "create", end - 1) == 0) {
+    args[l - end] = '\0';
+    if (strncmp(commandstr, "create", 6) == 0) {
         create_game(games, socket, args);
-    } else if (strncmp(commandstr, "join", end - 1) == 0) {
+    } else if (strncmp(commandstr, "join", 4) == 0) {
         join_game(games, socket, args);
-    } else if (strncmp(commandstr, "ping", end - 1) == 0) {
+    } else if (strncmp(commandstr, "ping", 4) == 0) {
         send(socket->fd, "pong\n", 5, 0);
-    } else if (strncmp(commandstr, "disconnect", end - 1) == 0) {
-        disconnect_player(games, socket);
+    } else if (strncmp(commandstr, "move", 4) == 0) {
+        make_move(games, socket, args);
+    } else if (strncmp(commandstr, "disconnect", 10) == 0) {
         struct game *game = find_game_by_player_fd(games, socket->fd);
-        if (game != NULL && (game->game_state == AWAITING_JOIN || game->game_state == STALE)) {
-            remove_game(games, game);
-        } else {
-            game->game_state = STALE;
+        disconnect_player(games, socket);
+        if (game != NULL) {
+            if (game->game_state == AWAITING_JOIN) {
+                remove_game(games, game);
+            } else {
+                game->game_state = AWAITING_JOIN;
+            }
         }
+        free(args);
         return 0;
     } else {
         SEND_SOCKET_MESSAGE(socket->fd, "Error: Invalid command");
     }
+    free(args);
 
     return 1;
+}
+
+void make_move(struct game *games[], struct client_socket *socket, char *args) {
+    struct game *game = find_game_by_player_fd(games, socket->fd);
+    if (game == NULL) {
+        SEND_SOCKET_MESSAGE(socket->fd, "Error: You're not in a game.");
+        return;
+    }
+    if (game->game_state != IN_PROGRESS) {
+        SEND_SOCKET_MESSAGE(socket->fd, "Error: The current game is not in progress.");
+        return;
+    }
+
+    if (game->current_player->socket->fd != socket->fd) {
+        SEND_SOCKET_MESSAGE(socket->fd, "Error: It's not your turn.");
+        return;
+    }
+
+    int start = 0, end;
+    end = read_word(args, &start);
+    char *posstr = slicestr(args, start, end);
+    if (!str_is_numeric(posstr)) {
+        free(posstr);
+        SEND_SOCKET_MESSAGE(socket->fd, INVALID_CREATE_ARGS);
+        return;
+    }
+    int pos = atoi(posstr);
+    free(posstr);
+
+    if (pos < 0 || pos >= game->size * game->size) {
+        SEND_SOCKET_MESSAGE(socket->fd, INVALID_MOVE_ARGS);
+        return;
+    }
+
+    if (game->board[pos] != PLAYER_EMPTY) {
+        SEND_SOCKET_MESSAGE(socket->fd, "Error: The cell you chose is already filled.");
+        return;
+    }
+
+    if (game->player1->socket->fd == socket->fd) {
+        game->board[pos] = PLAYER1;
+        game->current_player = game->player2;
+    } else {
+        game->board[pos] = PLAYER2;
+        game->current_player = game->player1;
+    }
+
+    // Notify both players with the board
+    send_board(game, game->player1);
+    send_board(game, game->player2);
+
+    if (
+        check_diagonal(game->board, game->size)
+        || check_horizontal(game->board, game->size)
+        || check_vertical(game->board, game->size)
+    ) {
+        char msg[50];
+        game->game_state = FINISHED;
+        if (game->current_player->socket->fd == game->player2->socket->fd) {
+            game->player1_wins += 1;
+            sprintf(msg, "WIN %d:%d\n", game->player1_wins, game->player2_wins);
+            send(game->player1->socket->fd, msg, strlen(msg), 0);
+            sprintf(msg, "LOSE %d:%d\n", game->player2_wins, game->player1_wins);
+            send(game->player2->socket->fd, msg, strlen(msg), 0);
+        } else {
+            game->player2_wins += 1;
+            sprintf(msg, "WIN %d:%d\n", game->player2_wins, game->player1_wins);
+            send(game->player2->socket->fd, msg, strlen(msg), 0);
+            sprintf(msg, "LOSE %d:%d\n", game->player1_wins, game->player2_wins);
+            send(game->player1->socket->fd, msg, strlen(msg), 0);
+        }
+    } else if (is_board_full(game->board, game->size)) {
+        game->game_state = FINISHED;
+        send(game->player1->socket->fd, "DRAW\n", 5, 0);
+        send(game->player2->socket->fd, "DRAW\n", 5, 0);
+    }
+
 }
 
 
@@ -87,7 +171,7 @@ void create_game(struct game *games[], struct client_socket *socket, char *args)
     new_game->player1_wins    = 0;
     new_game->player2_wins    = 0;
     new_game->game_state      = AWAITING_JOIN;
-    new_game->current_player  = PLAYER1;
+    new_game->current_player  = new_game->player1;
     new_game->board           = malloc(size * size * sizeof(PLAYER_NO));
     for (int i = size * size - 1; i >= 0; i -= 1) new_game->board[i] = PLAYER_EMPTY;
 
@@ -144,13 +228,25 @@ void join_game(struct game *games[], struct client_socket *socket, char *args) {
         SEND_SOCKET_MESSAGE(socket->fd, "Error: You chose the same shape as the other player.");
         return;
     }
-    game->player2 = malloc(sizeof(struct player));
-    game->player2->socket = socket;
-    game->player2->name   = name;
-    game->player2->shape  = shape;
+
+    struct player *player1, *player2;
+
+    if (game->player2 == NULL) {
+        game->player2 = malloc(sizeof(struct player));
+        player1 = game->player2;
+        player2 = game->player1;
+    } else {
+        game->player1 = malloc(sizeof(struct player));
+        player1 = game->player1;
+        player2 = game->player2;
+    }
+
+    player1->socket = socket;
+    player1->name   = name;
+    player1->shape  = shape;
 
     game->game_state = IN_PROGRESS;
-    send(game->player2->socket->fd, "SUCCESS\n", 8, 0);
+    send(player1->socket->fd, "SUCCESS\n", 8, 0);
 
     // TODO: Refactor this
 
@@ -203,6 +299,7 @@ void disconnect_player(struct game *games[], struct client_socket *socket) {
             free(game->player1->name);
             free(game->player1->shape);
             free(game->player1);
+            game->player1 = NULL;
             if (game->player2 != NULL) {
                 send(game->player2->socket->fd, "DISCONNECT: Player 1 disconnected.\n", 35, 0);
             }
@@ -210,6 +307,7 @@ void disconnect_player(struct game *games[], struct client_socket *socket) {
             free(game->player2->name);
             free(game->player2->shape);
             free(game->player2);
+            game->player2 = NULL;
             if (game->player1 != NULL) {
                 send(game->player1->socket->fd, "DISCONNECT: Player 2 disconnected.\n", 35, 0);
             }

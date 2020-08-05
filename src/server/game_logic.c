@@ -76,3 +76,11 @@ bool check_diagonal(int board[], int size) {
     return check;
 }
 
+bool is_board_full(int board[], int size) {
+    for (int i = 0; i < size * size; i += 1) {
+        if (board[i] == PLAYER_EMPTY) {
+            return false;
+        }
+    }
+    return true;
+}
