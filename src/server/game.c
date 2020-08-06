@@ -13,20 +13,27 @@
 static struct game *games[MAX_GAMES] = {NULL};
 
 int handle_command(struct client_socket *socket, char *commandstr) {
+    int output = 1;
     int start = 0, end, l = strlen(commandstr);
     end = read_word(commandstr, &start);
-    char *args = malloc(l - end + 1);
+    char *args = malloc(l - end + 1),
+         *command = malloc(end + 1);
     sstrncpy(args, commandstr, l - end, end);
+    sstrncpy(command, commandstr, end, 0);
     args[l - end] = '\0';
-    if (strncmp(commandstr, "create", 6) == 0) {
+    command[end] = '\0';
+    strtolower(command);
+    if (strncmp(command, "create", 6) == 0) {
         create_game(games, socket, args);
-    } else if (strncmp(commandstr, "join", 4) == 0) {
+    } else if (strncmp(command, "join", 4) == 0) {
         join_game(games, socket, args);
-    } else if (strncmp(commandstr, "ping", 4) == 0) {
+    } else if (strncmp(command, "ping", 4) == 0) {
         send(socket->fd, "pong\n", 5, 0);
-    } else if (strncmp(commandstr, "move", 4) == 0) {
+    } else if (strncmp(command, "move", 4) == 0) {
         make_move(games, socket, args);
-    } else if (strncmp(commandstr, "disconnect", 10) == 0) {
+    } else if (strncmp(command, "next", 4) == 0) {
+        reset_game(games, socket, args);
+    } else if (strncmp(command, "disconnect", 10) == 0) {
         struct game *game = find_game_by_player_fd(games, socket->fd);
         disconnect_player(games, socket);
         if (game != NULL) {
@@ -36,14 +43,37 @@ int handle_command(struct client_socket *socket, char *commandstr) {
                 game->game_state = AWAITING_JOIN;
             }
         }
-        free(args);
-        return 0;
+        output = 0;
     } else {
         SEND_SOCKET_MESSAGE(socket->fd, "Error: Invalid command");
     }
     free(args);
+    free(command);
 
-    return 1;
+    return output;
+}
+
+void reset_game(struct game *games[], struct client_socket *socket, char *args) {
+    struct game *game = find_game_by_player_fd(games, socket->fd);
+    if (game == NULL) {
+        SEND_SOCKET_MESSAGE(socket->fd, "Error: You're not in a game.");
+        return;
+    }
+
+    if (game->game_state != FINISHED) {
+        SEND_SOCKET_MESSAGE(socket->fd, "Error: You can only reset finished games.");
+        return;
+    }
+
+    game->game_state = IN_PROGRESS;
+    clear_board(game->board, game->size);
+    send(game->player1->socket->fd, "RESET\n", 6, 0);
+    send(game->player2->socket->fd, "RESET\n", 6, 0);
+
+    send_board(game, game->player1);
+    send_board(game, game->player2);
+
+    send(game->current_player->socket->fd, "YOUR_TURN\n", 10, 0);
 }
 
 void make_move(struct game *games[], struct client_socket *socket, char *args) {
@@ -100,21 +130,19 @@ void make_move(struct game *games[], struct client_socket *socket, char *args) {
         || check_horizontal(game->board, game->size)
         || check_vertical(game->board, game->size)
     ) {
-        char msg[50];
         game->game_state = FINISHED;
         if (game->current_player->socket->fd == game->player2->socket->fd) {
             game->player1_wins += 1;
-            sprintf(msg, "WIN %d:%d\n", game->player1_wins, game->player2_wins);
-            send(game->player1->socket->fd, msg, strlen(msg), 0);
-            sprintf(msg, "LOSE %d:%d\n", game->player2_wins, game->player1_wins);
-            send(game->player2->socket->fd, msg, strlen(msg), 0);
+            send(game->player1->socket->fd, "WIN\n", 4, 0);
+            send(game->player2->socket->fd, "LOSE\n", 5, 0);
         } else {
             game->player2_wins += 1;
-            sprintf(msg, "WIN %d:%d\n", game->player2_wins, game->player1_wins);
-            send(game->player2->socket->fd, msg, strlen(msg), 0);
-            sprintf(msg, "LOSE %d:%d\n", game->player1_wins, game->player2_wins);
-            send(game->player1->socket->fd, msg, strlen(msg), 0);
+            send(game->player2->socket->fd, "WIN\n", 4, 0);
+            send(game->player1->socket->fd, "LOSE\n", 5, 0);
         }
+        send_score_data(game, game->player1);
+        send_score_data(game, game->player2);
+        game->game_state = FINISHED;
     } else if (is_board_full(game->board, game->size)) {
         game->game_state = FINISHED;
         send(game->player1->socket->fd, "DRAW\n", 5, 0);
@@ -125,12 +153,17 @@ void make_move(struct game *games[], struct client_socket *socket, char *args) {
 }
 
 
+
 // Format create [board_size<3,10>] <name{3,10}> <symbol{1,3}>
 void create_game(struct game *games[], struct client_socket *socket, char *args) {
-
     struct game *game = find_game_by_player_fd(games, socket->fd);
     if (game != NULL) {
         SEND_SOCKET_MESSAGE(socket->fd, "Error: You're already in a game.");
+        return;
+    }
+
+    if (is_server_full(games)) {
+        SEND_SOCKET_MESSAGE(socket->fd, "Error: The server is currently full. Please try again later");
         return;
     }
 
@@ -163,7 +196,11 @@ void create_game(struct game *games[], struct client_socket *socket, char *args)
     }
 
     struct game *new_game = malloc(sizeof(struct game));
-    new_game->id              = random_number(); // # TODO: check if the id already exists
+    int game_id = random_number();
+    while (find_game_by_id(games, game_id) != NULL) {
+        game_id = random_number();
+    }
+    new_game->id              = game_id;
     new_game->size            = size;
     new_game->player1         = malloc(sizeof(struct player));
     new_game->player1->socket = socket;
@@ -176,7 +213,7 @@ void create_game(struct game *games[], struct client_socket *socket, char *args)
     new_game->board           = malloc(size * size * sizeof(PLAYER_NO));
     clear_board(new_game->board, size);
 
-    add_game(games, new_game); // TODO: check if the games array is full
+    add_game(games, new_game);
 
     char message[50];
     sprintf(message, "CODE: %d\n", new_game->id);
@@ -269,10 +306,19 @@ void send_game_details(struct game *game) {
 
 void send_board(struct game *game, struct player *player) {
     char *board = board_to_str(game->board, game->size);
-    send(player->socket->fd, "BOARD ", 6, 0);
-    send(player->socket->fd, board, strlen(board), 0);
-    send(player->socket->fd, "\n", 1, 0);
+    char msg[50];
+    sprintf(msg, "BOARD %s\n", board);
+    send(player->socket->fd, msg, strlen(msg), 0);
     free(board);
+}
+
+void send_score_data(struct game *game, struct player *player) {
+    char msg[50];
+    if (player == game->player1)
+        sprintf(msg, "SCORE %d:%d\n", game->player1_wins, game->player2_wins);
+    else
+        sprintf(msg, "SCORE %d:%d\n", game->player2_wins, game->player1_wins);
+    send(player->socket->fd, msg, strlen(msg), 0);
 }
 
 
@@ -286,6 +332,15 @@ bool add_game(struct game *games[], struct game *game) {
     return false;
 }
 
+bool is_server_full(struct game *games[]) {
+    for (int i = 0; i < MAX_GAMES; i += 1) {
+        if (games[i] == NULL) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void disconnect_player(struct game *games[], struct client_socket *socket) {
     struct game *game = find_game_by_player_fd(games, socket->fd);
     if (game != NULL) {
@@ -295,7 +350,7 @@ void disconnect_player(struct game *games[], struct client_socket *socket) {
             free(game->player1);
             game->player1 = NULL;
             if (game->player2 != NULL) {
-                send(game->player2->socket->fd, "DISCONNECT: Player 1 disconnected.\n", 35, 0);
+                send(game->player2->socket->fd, "DISCONNECT Player 1 disconnected.\n", 35, 0);
             }
         } else {
             free(game->player2->name);
@@ -303,7 +358,7 @@ void disconnect_player(struct game *games[], struct client_socket *socket) {
             free(game->player2);
             game->player2 = NULL;
             if (game->player1 != NULL) {
-                send(game->player1->socket->fd, "DISCONNECT: Player 2 disconnected.\n", 35, 0);
+                send(game->player1->socket->fd, "DISCONNECT Player 2 disconnected.\n", 35, 0);
             }
         }
     }

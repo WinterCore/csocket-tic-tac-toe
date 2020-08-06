@@ -11,7 +11,7 @@
 #define MIN_BOARD_SIZE 3
 #define MAX_BOARD_SIZE 10
 
-#define MAX_GAMES 100
+#define MAX_GAMES 1
 
 typedef enum game_state { AWAITING_JOIN, IN_PROGRESS, FINISHED, STALE } STATE;
 typedef enum player_no { PLAYER_EMPTY, PLAYER1, PLAYER2 } PLAYER_NO;
@@ -41,12 +41,15 @@ int handle_command(struct client_socket *socket, char *command);
 void create_game(struct game *games[], struct client_socket *socket, char *args);
 void join_game(struct game *games[], struct client_socket *socket, char *args);
 void make_move(struct game *games[], struct client_socket *socket, char *args);
+void reset_game(struct game *games[], struct client_socket *socket, char *args);
 
 
 void send_board(struct game *game, struct player *player);
 void send_game_details(struct game *game);
+void send_score_data(struct game *game, struct player *winner);
 
 bool add_game(struct game *games[], struct game *game);
+bool is_server_full(struct game *games[]);
 void remove_game(struct game *games[], struct game *game);
 void disconnect_player(struct game *games[], struct client_socket *socket);
 struct game *find_game_by_id(struct game *games[], int id);

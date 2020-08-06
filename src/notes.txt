@@ -1,7 +1,0 @@
-
-# Server
-- When creating a join code for a new game, check if it already exists and create a new one if that's the case.,
-
- ## Done
-    - Only send a buffer to the command handler when a newline is reached. We can't depend on tcp to actually send everything in one chunk or multiple chunks (eg: when calling `send` multiple times the tcp implementation may decide to send both messages in one packet)
-    - Delete the game when a player disconnects
