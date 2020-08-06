@@ -44,6 +44,7 @@ void make_move(struct game *games[], struct client_socket *socket, char *args);
 
 
 void send_board(struct game *game, struct player *player);
+void send_game_details(struct game *game);
 
 bool add_game(struct game *games[], struct game *game);
 void remove_game(struct game *games[], struct game *game);

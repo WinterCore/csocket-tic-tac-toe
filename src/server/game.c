@@ -119,8 +119,9 @@ void make_move(struct game *games[], struct client_socket *socket, char *args) {
         game->game_state = FINISHED;
         send(game->player1->socket->fd, "DRAW\n", 5, 0);
         send(game->player2->socket->fd, "DRAW\n", 5, 0);
+    } else {
+        send(game->current_player->socket->fd, "YOUR_TURN\n", 10, 0);
     }
-
 }
 
 
@@ -173,15 +174,19 @@ void create_game(struct game *games[], struct client_socket *socket, char *args)
     new_game->game_state      = AWAITING_JOIN;
     new_game->current_player  = new_game->player1;
     new_game->board           = malloc(size * size * sizeof(PLAYER_NO));
-    for (int i = size * size - 1; i >= 0; i -= 1) new_game->board[i] = PLAYER_EMPTY;
+    clear_board(new_game->board, size);
 
-    add_game(games, new_game); // TODO: chekc if the games array is full
+    add_game(games, new_game); // TODO: check if the games array is full
 
     char message[50];
     sprintf(message, "CODE: %d\n", new_game->id);
     send(socket->fd, message, strlen(message), 0);
 }
 
+void clear_board(int board[], int size) {
+    for (int i = size * size - 1; i >= 0; i -= 1)
+        board[i] = PLAYER_EMPTY;
+}
 
 // Format create <code{4}> <name{3,10}> <symbol{1,3}>
 void join_game(struct game *games[], struct client_socket *socket, char *args) {
@@ -229,48 +234,37 @@ void join_game(struct game *games[], struct client_socket *socket, char *args) {
         return;
     }
 
-    struct player *player1, *player2;
+    struct player *player;
 
     if (game->player2 == NULL) {
         game->player2 = malloc(sizeof(struct player));
-        player1 = game->player2;
-        player2 = game->player1;
+        player = game->player2;
     } else {
         game->player1 = malloc(sizeof(struct player));
-        player1 = game->player1;
-        player2 = game->player2;
+        player = game->player1;
     }
 
-    player1->socket = socket;
-    player1->name   = name;
-    player1->shape  = shape;
+    player->socket = socket;
+    player->name   = name;
+    player->shape  = shape;
 
     game->game_state = IN_PROGRESS;
-    send(player1->socket->fd, "SUCCESS\n", 8, 0);
 
-    // TODO: Refactor this
+    send_game_details(game);
 
-    // Notify each player with the shape of their opponent
-    send(game->player2->socket->fd, "OPPONENT_SHAPE ", 16, 0);
-    send(game->player2->socket->fd, game->player1->shape, strlen(game->player1->shape), 0);
-    send(game->player2->socket->fd, "\n", 1, 0);
-
-    send(game->player1->socket->fd, "OPPONENT_SHAPE ", 16, 0);
-    send(game->player1->socket->fd, game->player2->shape, strlen(game->player2->shape), 0);
-    send(game->player1->socket->fd, "\n", 1, 0);
-
-    // Notify each player with the shape of their opponent
-    send(game->player2->socket->fd, "OPPONENT_NAME ", 15, 0);
-    send(game->player2->socket->fd, game->player1->name, strlen(game->player1->name), 0);
-    send(game->player2->socket->fd, "\n", 1, 0);
-
-    send(game->player1->socket->fd, "OPPONENT_NAME ", 15, 0);
-    send(game->player1->socket->fd, game->player2->name, strlen(game->player2->name), 0);
-    send(game->player1->socket->fd, "\n", 1, 0);
-
-    // Notify both players with the board
     send_board(game, game->player1);
     send_board(game, game->player2);
+
+    send(game->current_player->socket->fd, "YOUR_TURN\n", 10, 0);
+}
+
+void send_game_details(struct game *game) {
+    char msg[100];
+    sprintf(msg, "OPPONENT_SHAPE %s\nOPPONENT_NAME %s\n", game->player1->shape, game->player1->name);
+    send(game->player2->socket->fd, msg, strlen(msg), 0);
+
+    sprintf(msg, "OPPONENT_SHAPE %s\nOPPONENT_NAME %s\n", game->player2->shape, game->player2->name);
+    send(game->player1->socket->fd, msg, strlen(msg), 0);
 }
 
 void send_board(struct game *game, struct player *player) {

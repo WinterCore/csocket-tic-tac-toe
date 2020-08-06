@@ -59,59 +59,62 @@ void async_handle_connections(int server_socket) {
         for (int i = 0; i < MAX_CLIENTS; i += 1) {
             struct client_socket *client = client_sockets[i];
             if (client != NULL && FD_ISSET(client->fd, &readfds)) {
-                while (1) {
-                    // TODO: Refactor this garbage
-                    int buf_remain = READ_BUFFER_SIZE - client->buffer_size;
-                    if (buf_remain == 0) {
-                        char *message = "Error: Buffer is full. Clearing everything";
-                        send(client->fd, message, strlen(message), 0);
-                        drain_buffer(client->fd);
-                        break;
-                    }
-                    int nread = read(client->fd, &client->buffer[client->buffer_size], buf_remain);
-                    if (nread < 0) {
-                        if (errno == EAGAIN) {
-                            break;
-                        } else {
-                            fprintf(stderr, "Client error %s:%d\n", client->ip, client->port);
-                            perror("read");
-                            handle_command(client, "disconnect");
-                            remove_client_socket(client, client_sockets, MAX_CLIENTS);
-                            break;
-                        }
-                    } else if (nread == 0) {
-                        printf("Client disconnected %s:%d\n", client->ip, client->port);
-                        fflush(stdout);
-                        handle_command(client, "disconnect");
-                        remove_client_socket(client, client_sockets, MAX_CLIENTS);
-                        break;
-                    } else {
-                        client->buffer_size += nread;
-                        char *line_start = client->buffer;
-                        char *line_end;
-                        while ((line_end = memchr(line_start, '\n', client->buffer_size - (line_start - client->buffer)))) {
-                            *line_end = '\0';
-                            char *command = malloc(line_end - line_start + 1);
-                            memcpy(command, line_start, (line_end - line_start));
-                            command[line_end - line_start] = '\0';
-                            send(client->fd, "ACK\n", 4, 0);
-                            int output = handle_command(client, command);
-                            free(command);
-                            if (output == 0) { // Client asked to be disconnected
-                                remove_client_socket(client, client_sockets, MAX_CLIENTS);
-                            }
-                            line_start = line_end + 1;
-                        }
-                        client->buffer_size -= line_start - client->buffer;
-                        memmove(client->buffer, line_start, client->buffer_size);
-
-                        break;
-                    }
-
+                int output = handle_socket_data(client);
+                if (output == 0) {
+                    remove_client_socket(client, client_sockets, MAX_CLIENTS);
                 }
             }
         }
     }
+}
+
+int handle_socket_data(struct client_socket *client) {
+    while (1) {
+        int buf_remain = READ_BUFFER_SIZE - client->buffer_size;
+        if (buf_remain == 0) {
+            char *message = "Error: Buffer is full. Clearing everything";
+            send(client->fd, message, strlen(message), 0);
+            drain_buffer(client->fd);
+            break;
+        }
+
+        int nread = read(client->fd, &client->buffer[client->buffer_size], buf_remain);
+        if (nread < 0) {
+            if (errno == EAGAIN) {
+                break;
+            } else {
+                fprintf(stderr, "Client error %s:%d\n", client->ip, client->port);
+                perror("read");
+                handle_command(client, "disconnect");
+                return 0;
+            }
+        } else if (nread == 0) {
+            printf("Client disconnected %s:%d\n", client->ip, client->port);
+            fflush(stdout);
+            handle_command(client, "disconnect");
+            return 0;
+        } else {
+            client->buffer_size += nread;
+            char *line_start = client->buffer;
+            char *line_end;
+            while ((line_end = memchr(line_start, '\n', client->buffer_size - (line_start - client->buffer)))) {
+                *line_end = '\0';
+                char *command = malloc(line_end - line_start + 1);
+                memcpy(command, line_start, (line_end - line_start));
+                command[line_end - line_start] = '\0';
+                send(client->fd, "ACK\n", 4, 0);
+                int output = handle_command(client, command);
+                free(command);
+                if (output == 0) return 0;
+                line_start = line_end + 1;
+            }
+            client->buffer_size -= line_start - client->buffer;
+            memmove(client->buffer, line_start, client->buffer_size);
+
+            break;
+        }
+    }
+    return 1;
 }
 
 int init_fd_set(fd_set *readfds, struct client_socket **client_sockets, int n) {
