@@ -100,7 +100,7 @@ void make_move(struct game *games[], struct client_socket *socket, char *args) {
         SEND_SOCKET_MESSAGE(socket->fd, INVALID_CREATE_ARGS);
         return;
     }
-    int pos = atoi(posstr);
+    int pos = strtol(posstr, NULL, 10);
     free(posstr);
 
     if (pos < 0 || pos >= game->size * game->size) {
@@ -174,7 +174,7 @@ void create_game(struct game *games[], struct client_socket *socket, char *args)
         SEND_SOCKET_MESSAGE(socket->fd, INVALID_CREATE_ARGS);
         return;
     }
-    int size = atoi(sizestr);
+    int size = strtol(sizestr, NULL, 10);
     free(sizestr);
     if (size < 3 || size > 10) {
         SEND_SOCKET_MESSAGE(socket->fd, INVALID_CREATE_ARGS);
@@ -235,7 +235,7 @@ void join_game(struct game *games[], struct client_socket *socket, char *args) {
         return;
     }
 
-    int code = atoi(codestr);
+    int code = strtol(codestr, NULL, 10);
     free(codestr);
     struct game *game = find_game_by_player_fd(games, socket->fd);
     if (game != NULL) {
@@ -344,21 +344,25 @@ bool is_server_full(struct game *games[]) {
 void disconnect_player(struct game *games[], struct client_socket *socket) {
     struct game *game = find_game_by_player_fd(games, socket->fd);
     if (game != NULL) {
-        if (game->player1->socket->fd == socket->fd) {
-            free(game->player1->name);
-            free(game->player1->shape);
-            free(game->player1);
-            game->player1 = NULL;
-            if (game->player2 != NULL) {
-                send(game->player2->socket->fd, "DISCONNECT Player 1 disconnected.\n", 35, 0);
+        if (game->player1 != NULL) {
+            if (game->player1->socket->fd == socket->fd) {
+                free(game->player1->name);
+                free(game->player1->shape);
+                free(game->player1);
+                game->player1 = NULL;
+                if (game->player2 != NULL) {
+                    send(game->player2->socket->fd, "DISCONNECT Player 1 disconnected.\n", 35, 0);
+                }
             }
-        } else {
-            free(game->player2->name);
-            free(game->player2->shape);
-            free(game->player2);
-            game->player2 = NULL;
-            if (game->player1 != NULL) {
-                send(game->player1->socket->fd, "DISCONNECT Player 2 disconnected.\n", 35, 0);
+        } else if (game->player2 != NULL) {
+            if (game->player2->socket->fd == socket->fd) {
+                free(game->player2->name);
+                free(game->player2->shape);
+                free(game->player2);
+                game->player2 = NULL;
+                if (game->player1 != NULL) {
+                    send(game->player1->socket->fd, "DISCONNECT Player 2 disconnected.\n", 35, 0);
+                }
             }
         }
     }
