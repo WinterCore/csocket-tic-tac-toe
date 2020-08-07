@@ -3,7 +3,7 @@
 
 #include "macros.h"
 #include "socket.h"
-#include "helpers.h"
+#include "../helpers.h"
 
 int main(int argc, char **argv) {
     if (argc < 2 || !str_is_numeric(*(argv + 1))) {

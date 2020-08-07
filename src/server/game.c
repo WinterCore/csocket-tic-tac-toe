@@ -8,7 +8,7 @@
 #include "macros.h"
 #include "game.h"
 #include "game_logic.h"
-#include "helpers.h"
+#include "../helpers.h"
 
 static struct game *games[MAX_GAMES] = {NULL};
 
