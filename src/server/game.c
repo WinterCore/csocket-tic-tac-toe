@@ -297,10 +297,10 @@ void join_game(struct game *games[], struct client_socket *socket, char *args) {
 
 void send_game_details(struct game *game) {
     char msg[100];
-    sprintf(msg, "OPPONENT_SHAPE %s\nOPPONENT_NAME %s\n", game->player1->shape, game->player1->name);
+    sprintf(msg, "GAME_SIZE %d\nOPPONENT_SHAPE %s\nOPPONENT_NAME %s\n", game->size, game->player1->shape, game->player1->name);
     send(game->player2->socket->fd, msg, strlen(msg), 0);
 
-    sprintf(msg, "OPPONENT_SHAPE %s\nOPPONENT_NAME %s\n", game->player2->shape, game->player2->name);
+    sprintf(msg, "GAME_SIZE %d\nOPPONENT_SHAPE %s\nOPPONENT_NAME %s\n", game->size, game->player2->shape, game->player2->name);
     send(game->player1->socket->fd, msg, strlen(msg), 0);
 }
 
