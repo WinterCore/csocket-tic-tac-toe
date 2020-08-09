@@ -21,7 +21,7 @@ bin/ttt-server: $(addprefix bin/server/, main.o socket.o game.o game_logic.o)
 bin/server/main.o: $(addprefix src/server/, main.c macros.h) bin/server/socket.o bin/helpers.o
 	$(CC) $(CFLAGS) -c src/server/main.c -o bin/server/main.o
 
-bin/server/socket.o: $(addprefix src/server/, socket.h socket.c macros.h) bin/server/game.o
+bin/server/socket.o: $(addprefix src/server/, socket.h socket.c macros.h) bin/server/game.o src/helpers.h
 	$(CC) $(CFLAGS) -c src/server/socket.c -o bin/server/socket.o
 
 bin/server/game.o: $(addprefix src/server/, game.c game.h macros.h) bin/helpers.o
@@ -41,7 +41,7 @@ bin/client/main.o: $(addprefix src/client/, main.c) bin/helpers.o bin/client/gam
 bin/client/socket.o: $(addprefix src/client/, socket.h socket.c)
 	$(CC) $(CFLAGS) -c src/client/socket.c -o bin/client/socket.o
 
-bin/client/game.o: $(addprefix src/client/, game.h game.c) bin/helpers.o
+bin/client/game.o: $(addprefix src/client/, game.h game.c macros.h) bin/helpers.o
 	$(CC) $(CFLAGS) -c src/client/game.c -o bin/client/game.o
 
 clean:

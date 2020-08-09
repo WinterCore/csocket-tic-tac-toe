@@ -2,6 +2,9 @@
 #define HELPERS_H
 #include <stdbool.h>
 
+#define MIN(x, y) x > y ? y : x
+#define MAX(x, y) x > y ? x : y
+
 void strtolower(char *str);
 int read_word(char *str, int *start);
 int random_number();

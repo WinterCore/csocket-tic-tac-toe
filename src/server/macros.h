@@ -6,8 +6,6 @@
 #define PERROR(str) perror(str);\
                exit(EXIT_FAILURE);
 
-#define MAX(x, y) x > y ? x : y
-
 #define SEND_SOCKET_MESSAGE(fd, str) \
         char *message = str "\n"; \
         send(fd, message, strlen(message), 0);

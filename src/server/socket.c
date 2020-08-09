@@ -10,6 +10,7 @@
 #include "macros.h"
 #include "socket.h"
 #include "game.h"
+#include "../helpers.h"
 
 
 int setup_server_socket(int port) {
