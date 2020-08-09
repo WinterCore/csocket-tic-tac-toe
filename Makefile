@@ -35,13 +35,13 @@ bin/server/game_logic.o: $(addprefix src/server/, game_logic.c game_logic.h game
 bin/ttt-client: $(addprefix bin/client/, main.o)
 	$(CC) $(CFLAGS) -lcurses -o bin/ttt-client $(addprefix bin/client/, main.o socket.o game.o) bin/helpers.o
 
-bin/client/main.o: $(addprefix src/client/, main.c) bin/helpers.o bin/client/game.o bin/client/socket.o
+bin/client/main.o: $(addprefix src/client/, main.c) bin/helpers.o bin/client/game.o
 	$(CC) $(CFLAGS) -c src/client/main.c -o $(addprefix bin/client/, main.o)
 
 bin/client/socket.o: $(addprefix src/client/, socket.h socket.c)
 	$(CC) $(CFLAGS) -c src/client/socket.c -o bin/client/socket.o
 
-bin/client/game.o: $(addprefix src/client/, game.h game.c macros.h) bin/helpers.o
+bin/client/game.o: $(addprefix src/client/, game.h game.c macros.h) bin/helpers.o bin/client/socket.o
 	$(CC) $(CFLAGS) -c src/client/game.c -o bin/client/game.o
 
 clean:

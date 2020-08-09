@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "socket.h"
 #include "game.h"
 #include "../helpers.h"
 
@@ -12,8 +11,7 @@ int main(int argc, char **argv) {
     }
 
     int port   = strtol(*(argv + 2), NULL, 10);
-    int socket = setup_server_socket(*(argv + 1), port);
-    init_game(socket);
+    init_game(*(argv + 1), port);
 
 
     return 0;

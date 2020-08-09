@@ -30,3 +30,9 @@ int setup_server_socket(char *str, int port) {
 
     return sock;
 }
+
+
+void *socket_thread(void *args) {
+
+    return NULL;
+}
