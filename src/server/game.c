@@ -270,6 +270,7 @@ void join_game(struct game *games[], struct client_socket *socket, char *args) {
         SEND_SOCKET_MESSAGE(socket->fd, "Error: You chose the same shape as the other player.");
         return;
     }
+    send(socket->fd, "SUCCESS\n", 8, 0);
 
     struct player *player;
 
