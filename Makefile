@@ -1,4 +1,4 @@
-CC=gcc
+CC=gcc -g
 CFLAGS=-Wall
 
 all: server client
@@ -33,7 +33,7 @@ bin/server/game_logic.o: $(addprefix src/server/, game_logic.c game_logic.h game
 # CLIENT
 
 bin/ttt-client: $(addprefix bin/client/, main.o)
-	$(CC) $(CFLAGS) -lcurses -o bin/ttt-client $(addprefix bin/client/, main.o socket.o game.o) bin/helpers.o
+	$(CC) $(CFLAGS) -lpthread -lcurses -o bin/ttt-client $(addprefix bin/client/, main.o socket.o game.o) bin/helpers.o
 
 bin/client/main.o: $(addprefix src/client/, main.c) bin/helpers.o bin/client/game.o
 	$(CC) $(CFLAGS) -c src/client/main.c -o $(addprefix bin/client/, main.o)

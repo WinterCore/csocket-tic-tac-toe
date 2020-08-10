@@ -20,10 +20,9 @@
 #define CREATE_GAME_OPT 0
 #define JOIN_GAME_OPT 1
 
-char *name = "Hasan", *shape = "x";
 
-pthread_cond_t socket_cond  = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t socket_lock = PTHREAD_MUTEX_INITIALIZER;
+
+char *name, *shape;
 
 void init_game(char *ip, int port) {
     initscr();
@@ -35,50 +34,103 @@ void init_game(char *ip, int port) {
     int centerx = COLS / 2,
         centery = LINES/ 2;
 
-    show_logo(centery - 13);
+    show_logo(centery - 11);
     print_str(centery, "Connecting to the server...");
     refresh();
 
     int socket = setup_server_socket(ip, port);
+    pthread_t socket_thread;
+    pthread_create(&socket_thread, NULL, socket_reader_thread, (void *) &socket);
+
+    wait_for_message(); // Wait for welcome message
 
     clear_lines(centery, centery);
 
-    set_initial_data(centery - 1);
+    set_initial_data(centery);
 
-    print_str(centery, "Choose an option wisely!");
+    print_str(centery + 1, "Choose an option wisely!");
 
     char *opts[2] = {"Create a new game", "Join a game"};
     int option = show_options_menu(centerx, centery + 3, opts, 2);
 
-    clear_lines(centery - 3, centery + 5);
+    clear_lines(centery + 1, centery + 1); // Clear the choose an option wisely title
 
     if (option == JOIN_GAME_OPT) {
-        print_str(centery, "Please enter the game's 4 digit code");
-        int code = strtol(read_str(centery + 2, 4, 4, isdigit), NULL, 10);
-        char msg[50];
-        sprintf(msg, "join %d %s %s", code, name, shape);
-        send(socket, msg, strlen(msg), 0);
+        create_game(centery, socket);
     } else {
-        print_str(centery, "Please enter the size of the board (3-10)");
-        int size;
-        do {
-            size = strtol(read_str(centery + 2, 1, 2, isdigit), NULL, 10);
-            clear_lines(centery + 2, centery + 2);
-        } while (size > 10 || size < 3);
-        char msg[50];
-        sprintf(msg, "create %d %s %s", size, name, shape);
-        send(socket, msg, strlen(msg), 0);
+        join_game(centery, socket);
     }
 
-
+    getch();
 
     endwin();
+}
+
+void create_game(int centery, int socket) {
+    int attemptsc = 0;
+    while (1) {
+        print_str(centery + 1, "Please enter the game's 4 digit code");
+        clear_lines(centery + 3, centery + 3);
+        int code = strtol(read_str(centery + 3, 4, 4, isdigit), NULL, 10);
+        char msg[50];
+        sprintf(msg, "join %d %s %s\n", code, name, shape);
+        send(socket, msg, strlen(msg), 0);
+        request_new_message();
+        wait_for_message();
+        if (strncmp(server_output, "SUCCESS", 7) == 0) break;
+        char str[100];
+        sprintf(str, "The game you're trying to join does not exist. Attemp %d", ++attemptsc);
+        print_str(centery + 2, str);
+    }
+
+    printf("%s\n", server_output);
+    fflush(stdout);
+    sleep(5);
+}
+
+void join_game(int centery, int socket) {
+    print_str(centery + 1, "Please enter the size of the board (3-10)");
+    int size;
+    do {
+        size = strtol(read_str(centery + 3, 1, 2, isdigit), NULL, 10);
+        clear_lines(centery + 3, centery + 3);
+    } while (size > 10 || size < 3);
+    char msg[100];
+    sprintf(msg, "create %d %s %s\n", size, name, shape);
+    send(socket, msg, strlen(msg), 0);
+    request_new_message();
+    wait_for_message();
+    clear_lines(centery + 1, centery + 3);
+    if (strncmp(server_output, "Error", 5) == 0) {
+        print_str(centery + 1, server_output);
+        print_str(centery + 2, "Press any key to exit");
+        getch();
+        endwin();
+        exit(0);
+    } else {
+        print_str(centery + 1, "Game created successfully. ");
+        print_str(centery + 2, server_output);
+        print_str(centery + 3, "Waiting for player2 to join...");
+    }
+}
+
+void wait_for_message() {
+    pthread_mutex_lock(&socket_lock);
+    pthread_cond_wait(&socket_cond, &socket_lock);
+}
+
+void request_new_message() {
+    pthread_mutex_unlock(&socket_lock);
+}
+
+void update_game_state(char *message) {
+
 }
 
 int show_options_menu(int posx, int posy, char **opts, int optsc) {
     int key, highlight = 0,
         marginx = posx - OPTS_MENU_WIDTH / 2,
-        marginy = posy - OPTS_MENU_HEIGHT / 2;
+        marginy = posy;
 
 
     WINDOW *menu = newwin(
@@ -112,6 +164,7 @@ int show_options_menu(int posx, int posy, char **opts, int optsc) {
         }
     }
     delwin(menu);
+    clear_lines(posy, posy + optsc + 2); // +2 is for the borders
 
     return abs(highlight % optsc);
 }
@@ -130,7 +183,7 @@ void set_initial_data(int posy) {
     print_str(posy + 4, "Please Enter Your Shape (1-3 characters)");
     shape = read_str(posy + 5, 1, 3, NULL);
 
-    clear_lines(posy - 2, posy + 6);
+    clear_lines(posy + 1, posy + 5);
 }
 
 void print_str(int posy, char *str) {
@@ -153,9 +206,9 @@ char *read_str(int posy, int min, int max, int (*filterer)(int c)) {
     move(posy, centerx);
     refresh();
 
-    while ((ch = getch()) != '\n' || chari < min) {
-        if (ch == '\n' || (filterer != NULL && !filterer(ch))) continue;
-
+    while (1) {
+        ch = getch();
+        if (ch == '\n' && chari >= min) break;
         if (ch == ALT_BACKSPACE) {
             if (chari > 0) {
                 chari -= 1;
@@ -164,7 +217,7 @@ char *read_str(int posy, int min, int max, int (*filterer)(int c)) {
                 mvaddnstr(posy, centerx - chari / 2, name, chari);
                 refresh();
             }
-        } else if (chari <= max - 1) {
+        } else if (chari <= max - 1 && (filterer == NULL || filterer(ch))) {
             name[chari] = ch;
             chari += 1;
 
