@@ -45,6 +45,7 @@ int handle_command(struct client_socket *socket, char *commandstr) {
         }
         output = 0;
     } else {
+        printf("%s:%d sent an invalid command \"%s\"", socket->ip, socket->port, command);
         SEND_SOCKET_MESSAGE(socket->fd, "Error: Invalid command");
     }
     free(args);
