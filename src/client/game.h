@@ -4,12 +4,29 @@
 #include <pthread.h>
 #include <stdbool.h>
 
-extern int server_out_size;
+extern int server_output_size;
 extern char server_output[200];
 
 extern pthread_cond_t socket_cond;
 extern pthread_mutex_t socket_lock;
 
+
+struct game {
+    int id;
+    int my_wins;
+    int opponent_wins;
+    int opponent_indicator;
+    int my_indicator;
+    struct player *me;
+    struct player *opponent;
+    int size;
+    int *board;
+};
+
+struct player {
+    char *name;
+    char *shape;
+};
 
 
 void init_game(char *ip, int port);
@@ -25,6 +42,9 @@ void wait_for_message();
 void request_new_message();
 void create_game(int centery, int socket);
 void join_game(int centery, int socket);
-bool game_loop();
+void init_game_data();
+void game_loop();
+void render();
+char *get_server_command_value(char *str, int n);
 
 #endif
