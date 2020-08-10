@@ -245,7 +245,7 @@ void join_game(struct game *games[], struct client_socket *socket, char *args) {
 
     game = find_game_by_id(games, code);
     if (game == NULL || game->game_state != AWAITING_JOIN) {
-        SEND_SOCKET_MESSAGE(socket->fd, "Error: The game does not exist.");
+        SEND_SOCKET_MESSAGE(socket->fd, "NOT_FOUND_ERR Error: The game does not exist.");
         return;
     }
 
@@ -267,7 +267,7 @@ void join_game(struct game *games[], struct client_socket *socket, char *args) {
     if (strcmp(game->player1->shape, shape) == 0) {
         free(name);
         free(shape);
-        SEND_SOCKET_MESSAGE(socket->fd, "Error: You chose the same shape as the other player.");
+        SEND_SOCKET_MESSAGE(socket->fd, "SAME_SHAPE_ERR Error: You chose the same shape as the other player.");
         return;
     }
     send(socket->fd, "SUCCESS\n", 8, 0);
