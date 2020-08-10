@@ -78,8 +78,10 @@ void *socket_reader_thread(void *args) {
                     continue;
                 }
                 pthread_mutex_lock(&socket_lock);
+                while (*line_start == '\0') line_start += 1; // Skip null terminators at the start of the stream
                 *line_end = '\0';
                 memcpy(server_output, line_start, (line_end - line_start));
+                server_output_size = line_end - line_start;
                 server_output[line_end - line_start] = '\0';
                 line_start = line_end + 1;
                 pthread_cond_signal(&socket_cond);
