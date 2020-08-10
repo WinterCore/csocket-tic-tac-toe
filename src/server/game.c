@@ -296,11 +296,34 @@ void join_game(struct game *games[], struct client_socket *socket, char *args) {
 }
 
 void send_game_details(struct game *game) {
-    char msg[100];
-    sprintf(msg, "GAME_SIZE %d\nOPPONENT_SHAPE %s\nOPPONENT_NAME %s\n", game->size, game->player1->shape, game->player1->name);
+    char msg[200];
+
+    char *format_str = "OPPONENT_INDICATOR %d\n"
+                       "YOUR_INDICATOR %d\n"
+                       "GAME_SIZE %d\n"
+                       "OPPONENT_SHAPE %s\n"
+                       "OPPONENT_NAME %s\n";
+
+    sprintf(
+               msg,
+               format_str,
+               PLAYER2,
+               PLAYER1,
+               game->size,
+               game->player1->shape,
+               game->player1->name
+           );
     send(game->player2->socket->fd, msg, strlen(msg), 0);
 
-    sprintf(msg, "GAME_SIZE %d\nOPPONENT_SHAPE %s\nOPPONENT_NAME %s\n", game->size, game->player2->shape, game->player2->name);
+    sprintf(
+               msg,
+               format_str,
+               PLAYER1,
+               PLAYER2,
+               game->size,
+               game->player2->shape,
+               game->player2->name
+           );
     send(game->player1->socket->fd, msg, strlen(msg), 0);
 }
 
