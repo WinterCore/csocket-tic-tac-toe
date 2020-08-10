@@ -374,25 +374,21 @@ bool is_server_full(struct game *games[]) {
 void disconnect_player(struct game *games[], struct client_socket *socket) {
     struct game *game = find_game_by_player_fd(games, socket->fd);
     if (game != NULL) {
-        if (game->player1 != NULL) {
-            if (game->player1->socket->fd == socket->fd) {
-                free(game->player1->name);
-                free(game->player1->shape);
-                free(game->player1);
-                game->player1 = NULL;
-                if (game->player2 != NULL) {
-                    send(game->player2->socket->fd, "DISCONNECT Player 1 disconnected.\n", 35, 0);
-                }
+        if (game->player1 != NULL && game->player1->socket->fd == socket->fd) {
+            free(game->player1->name);
+            free(game->player1->shape);
+            free(game->player1);
+            game->player1 = NULL;
+            if (game->player2 != NULL) {
+                send(game->player2->socket->fd, "DISCONNECT Player 1 disconnected.\n", 35, 0);
             }
-        } else if (game->player2 != NULL) {
-            if (game->player2->socket->fd == socket->fd) {
-                free(game->player2->name);
-                free(game->player2->shape);
-                free(game->player2);
-                game->player2 = NULL;
-                if (game->player1 != NULL) {
-                    send(game->player1->socket->fd, "DISCONNECT Player 2 disconnected.\n", 35, 0);
-                }
+        } else if (game->player2 != NULL && game->player2->socket->fd == socket->fd) {
+            free(game->player2->name);
+            free(game->player2->shape);
+            free(game->player2);
+            game->player2 = NULL;
+            if (game->player1 != NULL) {
+                send(game->player1->socket->fd, "DISCONNECT Player 2 disconnected.\n", 35, 0);
             }
         }
     }
