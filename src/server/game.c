@@ -289,6 +289,11 @@ void join_game(struct game *games[], struct client_socket *socket, char *args) {
     game->game_state = IN_PROGRESS;
 
     send_game_details(game);
+    send_score_data(game, game->player1);
+    send_score_data(game, game->player2);
+
+    send(game->player1->socket->fd, "GAME_START\n", 12, 0);
+    send(game->player2->socket->fd, "GAME_START\n", 12, 0);
 
     send_board(game, game->player1);
     send_board(game, game->player2);
