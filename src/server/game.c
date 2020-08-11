@@ -286,6 +286,8 @@ void join_game(struct game *games[], struct client_socket *socket, char *args) {
     player->socket = socket;
     player->name   = name;
     player->shape  = shape;
+    if (game->current_player == NULL)
+        game->current_player = player;
 
     game->game_state = IN_PROGRESS;
 
@@ -378,6 +380,9 @@ void disconnect_player(struct game *games[], struct client_socket *socket) {
             free(game->player1->name);
             free(game->player1->shape);
             free(game->player1);
+            if (game->current_player == game->player1) {
+                game->current_player = NULL;
+            }
             game->player1 = NULL;
             if (game->player2 != NULL) {
                 send(game->player2->socket->fd, "DISCONNECT Player 1 disconnected.\n", 35, 0);
@@ -386,6 +391,9 @@ void disconnect_player(struct game *games[], struct client_socket *socket) {
             free(game->player2->name);
             free(game->player2->shape);
             free(game->player2);
+            if (game->current_player == game->player2) {
+                game->current_player = NULL;
+            }
             game->player2 = NULL;
             if (game->player1 != NULL) {
                 send(game->player1->socket->fd, "DISCONNECT Player 2 disconnected.\n", 35, 0);
