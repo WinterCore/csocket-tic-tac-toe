@@ -14,6 +14,8 @@
 #include "../helpers.h"
 
 #define ALT_BACKSPACE 127
+#define ALT_ENTER 10
+
 #define OPTS_MENU_WIDTH 40
 #define OPTS_MENU_HEIGHT 4
 
@@ -21,10 +23,12 @@
 #define JOIN_GAME_OPT 1
 
 
-
 char *name, *shape;
 struct game *game;
 bool my_turn = false;
+int selected_cell = 3;
+int server_socket;
+char *empty_cell = " ";
 
 void init_game(char *ip, int port) {
     initscr();
@@ -33,6 +37,28 @@ void init_game(char *ip, int port) {
     noecho();
     clear();
 
+    // game                     = malloc(sizeof(struct game));
+    // game->board              = malloc(sizeof(int) * 9);
+    // game->size               = 3;
+    // game->me                 = malloc(sizeof(struct player));
+    // game->me->shape          = "X";
+    // game->me->name           = "Hasan";
+    // game->opponent           = malloc(sizeof(struct player));
+    // game->opponent->shape    = "Y";
+    // game->opponent->name     = "Foobar";
+    // game->my_indicator       = 1;
+    // game->opponent_indicator = 2;
+    // for (int i = 0; i < 9; i += 1) game->board[i] = 1;
+
+    // render();
+
+    // sleep(10000);
+
+
+
+
+
+
     int centerx = COLS / 2,
         centery = LINES/ 2;
 
@@ -40,9 +66,9 @@ void init_game(char *ip, int port) {
     print_str(centery, "Connecting to the server...");
     refresh();
 
-    int socket = setup_server_socket(ip, port);
+    server_socket = setup_server_socket(ip, port);
     pthread_t socket_thread;
-    pthread_create(&socket_thread, NULL, socket_reader_thread, (void *) &socket);
+    pthread_create(&socket_thread, NULL, socket_reader_thread, (void *) &server_socket);
 
     wait_for_message(); // Wait for welcome message
 
@@ -58,9 +84,9 @@ void init_game(char *ip, int port) {
     clear_lines(centery + 1, centery + 1); // Clear the choose an option wisely title
 
     if (option == JOIN_GAME_OPT) {
-        join_game(centery, socket);
+        join_game(centery, server_socket);
     } else {
-        create_game(centery, socket);
+        create_game(centery, server_socket);
     }
 
     game->me = malloc(sizeof(struct player));
@@ -81,19 +107,63 @@ void init_game(char *ip, int port) {
 
     // Game loop
     while (1) {
-        if (!my_turn) {
-            request_new_message();
-            wait_for_message();
-        }
+        request_new_message();
+        wait_for_message();
         game_loop();
         render();
     }
 
-
-    printf("Initialized game successfully");
-    fflush(stdout);
-
     endwin();
+}
+
+void draw_board() {
+    int cellw = 5, cellh = 1;
+
+    // Print board
+    int width  = game->size * (2 + cellw - 1) + 1,
+        height = game->size * (2 + cellh - 1) + 1,
+        left   = COLS / 2 - width / 2,
+        top    = LINES / 2 - height / 2;
+
+
+    refresh();
+    WINDOW *board = newwin(
+                              height,
+                              width,
+                              top,
+                              left
+                          );
+    wrefresh(board);
+    keypad(board, true);
+    box(board, 0, 0);
+    for (int i = 0, l = game->size * game->size; i < l; i += 1) {
+        int x = i % game->size * (2 + cellw - 1) + 1, y = i / game->size * (2 + cellh - 1) + 1;
+        char *shape = NULL;
+        if (game->board[i] == game->my_indicator) {
+            shape = game->me->shape;
+        } else if (game->board[i] == game->opponent_indicator) {
+            shape = game->opponent->shape;
+        } else {
+            shape = empty_cell;
+        }
+        if (my_turn && selected_cell == i)
+            wattron(board, A_REVERSE);
+        mvwprintw(board, y + (cellh - 1) / 2, x + (cellw - strlen(shape)) / 2, shape);
+        wattroff(board, A_REVERSE);
+
+        for (int j = 0; j < cellh; j += 1) {
+            if (i % game->size < game->size - 1) {
+                mvwprintw(board, y + j, x + cellw, "|");
+            }
+        }
+        if (i / game->size < game->size - 1) {
+            for (int i = 0; i < width - 2; i += 1) {
+                mvwprintw(board, y + cellh, i + 1, "-");
+            }
+        }
+    }
+    wrefresh(board);
+    move(LINES - 1, COLS - 1);
 }
 
 void render() {
@@ -119,22 +189,58 @@ void render() {
     sprintf(str, "Score: %d", game->opponent_wins);
     mvaddstr(8, 0, str);
 
-    // Print board
-    int width = game->size * 2 + 1,
-        left  = COLS / 2 - width / 2,
-        top   = LINES / 2 - width / 2;
 
-    WINDOW *board = newwin(
-                              width,
-                              width,
-                              top,
-                              left
-                          );
+    draw_board();
+    while (my_turn) {
+        draw_board();
+        int ch = getch();
+        sprintf(str, "%d-%d-%d", ch, KEY_ENTER, ALT_ENTER);
+        clear_lines(centery + 5, centery + 5);
+        print_str(centery + 5, str);
+        switch (ch) {
+        case KEY_ENTER:
+        case ALT_ENTER:
+            if (game->board[selected_cell] == 0) {
+                my_turn = false;
+                sprintf(str, "move %d\n", selected_cell);
 
+                if (send(server_socket, str, strlen(str), 0) < 0) {
+                    perror("Send error");
+                    exit(1);
+                }
+            }
+            break;
+        case KEY_UP:
+            if (selected_cell < game->size) {
+                selected_cell = game->size * (game->size - 1) + selected_cell;
+            } else {
+                selected_cell -= game->size;
+            }
+            break;
+        case KEY_DOWN:
+            if (selected_cell / game->size >= game->size - 1) {
+                selected_cell = selected_cell % game->size;
+            } else {
+                selected_cell += game->size;
+            }
+            break;
+        case KEY_RIGHT:
+            if (selected_cell % game->size < game->size - 1) {
+                selected_cell += 1;
+            } else {
+                selected_cell -= game->size - 1;
+            }
+            break;
+        case KEY_LEFT:
+            if (selected_cell % game->size > 0) {
+                selected_cell -= 1;
+            } else {
+                selected_cell += game->size - 1;
+            }
+            break;
+        }
+    }
 
-
-    refresh();
-    getch();
 }
 
 void game_loop() {
@@ -366,7 +472,7 @@ char *read_str(int posy, int min, int max, int (*filterer)(int c)) {
     while (1) {
         ch = getch();
         if (ch == '\n' && chari >= min) break;
-        if (ch == ALT_BACKSPACE) {
+        if (ch == ALT_BACKSPACE || ch == KEY_BACKSPACE) {
             if (chari > 0) {
                 chari -= 1;
                 move(posy, 0);

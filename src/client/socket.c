@@ -48,8 +48,6 @@ int setup_server_socket(char *str, int port) {
 void *socket_reader_thread(void *args) {
 
     int socket = *(int *) args;
-                printf("Here");
-                fflush(stdout);
     char read_buffer[READ_BUFFER_SIZE];
     int read_buffer_size = 0;
 
