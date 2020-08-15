@@ -316,8 +316,8 @@ void send_game_details(struct game *game) {
     sprintf(
                msg,
                format_str,
-               PLAYER2,
                PLAYER1,
+               PLAYER2,
                game->size,
                game->player1->shape,
                game->player1->name
@@ -327,8 +327,8 @@ void send_game_details(struct game *game) {
     sprintf(
                msg,
                format_str,
-               PLAYER1,
                PLAYER2,
+               PLAYER1,
                game->size,
                game->player2->shape,
                game->player2->name

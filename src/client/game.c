@@ -189,6 +189,9 @@ void render() {
     sprintf(str, "Score: %d", game->opponent_wins);
     mvaddstr(8, 0, str);
 
+    if (my_turn) {
+
+    }
 
     draw_board();
     while (my_turn) {
@@ -252,6 +255,15 @@ void game_loop() {
         }
     } else if (strncmp(server_output, "YOUR_TURN", 9) == 0) {
         my_turn = true;
+    } else if (strncmp(server_output, "WIN", 3) == 0) {
+        print_str(0, "Congrats. You have won");
+    } else if (strncmp(server_output, "LOSE", 4) == 0) {
+        print_str(0, "You lost. Better luck next time!");
+    } else if (strncmp(server_output, "SCORE", 5) == 0) {
+        char *strptr = memchr(server_output, ' ', server_output_size);
+
+        game->my_wins       = strtol(strptr, &strptr, 10);
+        game->opponent_wins = strtol(strptr + 1, NULL, 10);
     } else {
         fprintf(stderr, "Unrecongized server expression %s", server_output);
         exit(1);
@@ -316,7 +328,7 @@ void join_game(int centery, int socket) {
         } else if (strncmp(server_output, "SAME_SHAPE_ERR", 13) == 0) {
             char str[100];
             char *old_shape = shape;
-            shape = NULL; // This is done to prevent the the value in old_shape from being freed in the do while loop
+            shape = NULL; // This is done to prevent the value in old_shape from being freed in the do while loop
             clear_lines(centery + 3, centery + 3);
             sprintf(str, "You have the same shape as the other player \"%s\" Please pick a different one", old_shape);
             print_str(centery + 1, str);
