@@ -11,6 +11,8 @@ extern pthread_cond_t socket_cond;
 extern pthread_mutex_t socket_lock;
 
 
+typedef enum game_state { AWAITING_JOIN, IN_PROGRESS, FINISHED } STATE;
+
 struct game {
     int id;
     int my_wins;
@@ -21,6 +23,8 @@ struct game {
     struct player *opponent;
     int size;
     int *board;
+    STATE state;
+    bool winner;
 };
 
 struct player {

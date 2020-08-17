@@ -37,28 +37,6 @@ void init_game(char *ip, int port) {
     noecho();
     clear();
 
-    // game                     = malloc(sizeof(struct game));
-    // game->board              = malloc(sizeof(int) * 9);
-    // game->size               = 3;
-    // game->me                 = malloc(sizeof(struct player));
-    // game->me->shape          = "X";
-    // game->me->name           = "Hasan";
-    // game->opponent           = malloc(sizeof(struct player));
-    // game->opponent->shape    = "Y";
-    // game->opponent->name     = "Foobar";
-    // game->my_indicator       = 1;
-    // game->opponent_indicator = 2;
-    // for (int i = 0; i < 9; i += 1) game->board[i] = 1;
-
-    // render();
-
-    // sleep(10000);
-
-
-
-
-
-
     int centerx = COLS / 2,
         centery = LINES/ 2;
 
@@ -89,18 +67,16 @@ void init_game(char *ip, int port) {
         create_game(centery, server_socket);
     }
 
-    game->me = malloc(sizeof(struct player));
+    game->me        = malloc(sizeof(struct player));
     game->me->name  = name;
     game->me->shape = shape;
-    game->opponent = malloc(sizeof(struct player));
+    game->opponent  = malloc(sizeof(struct player));
 
     // Initialize game
-    while (1) {
-        request_new_message();
-        wait_for_message();
-        if (strncmp(server_output, "GAME_START", 10) == 0) break;
-        init_game_data();
-    }
+    init_game_data();
+
+    game->winner = false;
+    game->state = IN_PROGRESS;
 
     game->board = malloc(sizeof(int) * game->size * game->size);
     for (int i = game->size * game->size - 1; i >= 0; i -= 1) game->board[i] = 0;
@@ -189,17 +165,37 @@ void render() {
     sprintf(str, "Score: %d", game->opponent_wins);
     mvaddstr(8, 0, str);
 
-    if (my_turn) {
 
+    sprintf(str, "GAME CODE: %d", game->id);
+    mvaddstr(0, COLS / 2 - strlen(str) / 2, str);
+
+    move(1, COLS / 2 - 30);
+    clrtoeol();
+    move(2, COLS / 2 - 30);
+    clrtoeol();
+    if (game->state == IN_PROGRESS) {
+        if (my_turn) {
+            sprintf(str, "YOUR TURN");
+        } else {
+            sprintf(str, "OPPONENT's TURN");
+        }
+        mvaddstr(1, COLS / 2 - strlen(str) / 2, str);
+    } else if (game->state == AWAITING_JOIN) {
+        print_str(1, "Your opponent has disconnected");
+        print_str(2, "You can either ask them to rejoin. or exit by pressing CTRL+C");
+    } else if (game->state == FINISHED) {
+        if (game->winner) {
+            print_str(1, "You have won. Congrats");
+        } else {
+            print_str(1, "You have lost. Better luck next time.");
+        }
     }
 
     draw_board();
     while (my_turn) {
-        draw_board();
         int ch = getch();
-        sprintf(str, "%d-%d-%d", ch, KEY_ENTER, ALT_ENTER);
-        clear_lines(centery + 5, centery + 5);
-        print_str(centery + 5, str);
+        clear_lines(centery + 5, centery + 5); // TODO: fix this
+
         switch (ch) {
         case KEY_ENTER:
         case ALT_ENTER:
@@ -242,8 +238,8 @@ void render() {
             }
             break;
         }
+        draw_board();
     }
-
 }
 
 void game_loop() {
@@ -256,9 +252,12 @@ void game_loop() {
     } else if (strncmp(server_output, "YOUR_TURN", 9) == 0) {
         my_turn = true;
     } else if (strncmp(server_output, "WIN", 3) == 0) {
-        print_str(0, "Congrats. You have won");
+        game->winner = true;
+        game->state = FINISHED;
     } else if (strncmp(server_output, "LOSE", 4) == 0) {
-        print_str(0, "You lost. Better luck next time!");
+        game->state = FINISHED;
+    } else if (strncmp(server_output, "DISCONNECT", 10) == 0) {
+        game->state = AWAITING_JOIN;
     } else if (strncmp(server_output, "SCORE", 5) == 0) {
         char *strptr = memchr(server_output, ' ', server_output_size);
 
@@ -271,36 +270,43 @@ void game_loop() {
 }
 
 void init_game_data() {
-    if (strncmp(server_output, "OPPONENT_INDICATOR", 18) == 0) {
-        char *data = get_server_command_value(server_output, server_output_size);
-        game->opponent_indicator = strtol(data, NULL, 10);
-        free(data);
-    } else if (strncmp(server_output, "YOUR_INDICATOR", 14) == 0) {
-        char *data = get_server_command_value(server_output, server_output_size);
-        game->my_indicator = strtol(data, NULL, 10);
-        free(data);
-    } else if (strncmp(server_output, "GAME_SIZE", 9) == 0) {
-        char *data = get_server_command_value(server_output, server_output_size);
-        game->size = strtol(data, NULL, 10);
-        free(data);
-    } else if (strncmp(server_output, "OPPONENT_SHAPE", 14) == 0) {
-        game->opponent->shape = get_server_command_value(server_output, server_output_size);
-    } else if (strncmp(server_output, "OPPONENT_NAME", 13) == 0) {
-        game->opponent->name = get_server_command_value(server_output, server_output_size);
-    } else if (strncmp(server_output, "SCORE", 5) == 0) {
-        char *strptr = memchr(server_output, ' ', server_output_size);
+    while (1) {
+        request_new_message();
+        wait_for_message();
+        if (strncmp(server_output, "GAME_START", 10) == 0) {
+            break;
+        } if (strncmp(server_output, "OPPONENT_INDICATOR", 18) == 0) {
+            char *data = get_server_command_value(server_output, server_output_size);
+            game->opponent_indicator = strtol(data, NULL, 10);
+            free(data);
+        } else if (strncmp(server_output, "YOUR_INDICATOR", 14) == 0) {
+            char *data = get_server_command_value(server_output, server_output_size);
+            game->my_indicator = strtol(data, NULL, 10);
+            free(data);
+        } else if (strncmp(server_output, "GAME_SIZE", 9) == 0) {
+            char *data = get_server_command_value(server_output, server_output_size);
+            game->size = strtol(data, NULL, 10);
+            free(data);
+        } else if (strncmp(server_output, "OPPONENT_SHAPE", 14) == 0) {
+            game->opponent->shape = get_server_command_value(server_output, server_output_size);
+        } else if (strncmp(server_output, "OPPONENT_NAME", 13) == 0) {
+            game->opponent->name = get_server_command_value(server_output, server_output_size);
+        } else if (strncmp(server_output, "SCORE", 5) == 0) {
+            char *strptr = memchr(server_output, ' ', server_output_size);
 
-        game->my_wins       = strtol(strptr, &strptr, 10);
-        game->opponent_wins = strtol(strptr + 1, NULL, 10);
-    } else {
-        fprintf(stderr, "Unrecongized server expression %s", server_output);
-        exit(1);
+            game->my_wins       = strtol(strptr, &strptr, 10);
+            game->opponent_wins = strtol(strptr + 1, NULL, 10);
+        } else {
+            fprintf(stderr, "Unrecongized server expression %s", server_output);
+            exit(1);
+        }
     }
 }
 
 char *get_server_command_value(char *str, int n) {
     char *data = memchr(str, ' ', n);
     if (data == NULL) return NULL;
+    data += 1; // skip the whitespace
     int l = n - (data - str);
     char *output = malloc(l + 1);
     memcpy(output, data, l);
